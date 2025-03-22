@@ -76,10 +76,12 @@ export default function Ongoing() {
     const query = e.target.value.toLowerCase();
     setSearchQuery(query);
     const filtered = ongoingList.filter(project =>
-      project.project_name.toLowerCase().includes(query)
+      project.project_name.toLowerCase().includes(query) || 
+      project.month.toLowerCase().includes(query) // Search by month
     );
     setFilteredProjects(filtered);
   };
+  
 const handelToggle = () => {
     router.push("/"); // Redirect to completed page
     }

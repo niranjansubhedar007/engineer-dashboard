@@ -70,14 +70,15 @@ export default function Home() {
     setEditingId(record.id);
   };
 
-  // Search by project name
   const handleSearch = (e) => {
     setSearchQuery(e.target.value);
     const filtered = completedList.filter((project) =>
-      project.project_name.toLowerCase().includes(e.target.value.toLowerCase())
+      project.project_name.toLowerCase().includes(e.target.value.toLowerCase()) ||
+      project.month.toLowerCase().includes(e.target.value.toLowerCase()) // Search by month
     );
     setFilteredProjects(filtered);
   };
+  
   const handelToggle = () => {
     router.push("/ongoing"); // Redirect to completed page
     }
