@@ -31,8 +31,31 @@ export default function Home() {
   const [filteredProjects, setFilteredProjects] = useState([]); // For search
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter(); // Initialize router
-  const [selectedEng, setSelectedEng] = useState("");
+  const [selectedEngineer, setSelectedEngineer] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [chartData, setChartData] = useState({
+    labels: [],
+    datasets: [],
+  });
+
+  // Months array
+  const months = [
+    "January",
+    "February",
+    "March",
+    "Apr-24",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+  ];
+
+  // Get unique engineers
+  const engineers = [...new Set(completedList.map((item) => item.eng))].filter(
+    Boolean
+  );
+
   const [formData, setFormData] = useState({
     project_name: "",
     kva: "",
@@ -112,56 +135,100 @@ export default function Home() {
     );
     setFilteredProjects(filtered);
   };
+  
+  const getMonthYear = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    return (
+      date.toLocaleString("en-US", { month: "short" }) +
+      "-" +
+      date.getFullYear().toString().slice(-2)
+    );
+  };
+
+  const prepareChartData = () => {
+    if (!completedList.length || !selectedEngineer || !selectedMonth) return;
+
+    // ✅ Correctly format the selected month
+    const monthMapping = {
+      January: "Jan",
+      February: "Feb",
+      March: "Mar",
+      April: "Apr",
+      May: "May",
+      June: "Jun",
+      July: "Jul",
+      August: "Aug",
+      September: "Sep",
+      October: "Oct",
+      November: "Nov",
+      December: "Dec",
+    };
+
+    const formattedMonth = monthMapping[selectedMonth] + "-24"; // Manually appending the year
+    console.log("✅ Formatted Month for Comparison:", formattedMonth);
+
+    const completedListWithMonths = completedList.map((project) => ({
+      ...project,
+      startMonthYear: getMonthYear(project.start_date),
+      endMonthYear: getMonthYear(project.end_date),
+    }));
+
+    const filtered = completedListWithMonths.filter((project) => {
+      const matchesEngineer =
+        project.eng.trim().toLowerCase() ===
+        selectedEngineer.trim().toLowerCase();
+      const matchesMonth = project.month === formattedMonth;
+
+      return matchesEngineer && matchesMonth;
+    });
+
+    console.log("📊 Filtered Projects for Chart:", filtered);
+
+    if (!filtered.length) {
+      console.log("❌ No matching projects found for selected month.");
+      setChartData({ labels: [], datasets: [] });
+      return;
+    }
+
+    const uniqueMonths = [
+      ...new Set(filtered.map((p) => p.startMonthYear || p.endMonthYear)),
+    ].sort();
+    const monthlyData = uniqueMonths.map((month) => {
+      return filtered
+        .filter(
+          (project) =>
+            project.startMonthYear === month || project.endMonthYear === month
+        )
+        .reduce((sum, project) => sum + (parseFloat(project.kva) || 0), 0);
+    });
+
+    setChartData({
+      labels: uniqueMonths,
+      datasets: [
+        {
+          label: `Total KVA for ${selectedEngineer}`,
+          data: monthlyData,
+          backgroundColor: "rgba(54, 162, 235, 0.6)",
+          borderColor: "rgba(54, 162, 235, 1)",
+          borderWidth: 1,
+        },
+      ],
+    });
+  };
+
+  useEffect(() => {
+    if (selectedEngineer && selectedMonth) {
+      prepareChartData();
+    }
+  }, [selectedEngineer, selectedMonth, completedList]);
 
   const handelToggle = () => {
     router.push("/ongoing"); // Redirect to completed page
   };
-
-  const getMonthDateRange = (monthString) => {
-    const [month, year] = monthString.split("-"); // Extract month & year
-    const monthIndex = new Date(`${month} 1, 20${year}`).getMonth(); // Convert to 0-based index
-    const yearFull = `20${year}`;
-
-    const startOfMonth = new Date(yearFull, monthIndex, 1);
-    const endOfMonth = new Date(yearFull, monthIndex + 1, 0); // Last day of the month
-
-    return { startOfMonth, endOfMonth };
-  };
-
-  const getFilteredChartData = () => {
-    if (!selectedEng || !selectedMonth) return [];
-
-    const { startOfMonth, endOfMonth } = getMonthDateRange(selectedMonth);
-
-    return completedList
-      .filter(
-        (project) =>
-          project.eng === selectedEng &&
-          new Date(project.start_date) >= startOfMonth &&
-          new Date(project.end_date) <= endOfMonth
-      )
-      .sort((a, b) => new Date(a.start_date) - new Date(b.start_date)) // Sort by start date
-      .map((project) => ({
-        label: project.start_date, // Show start dates on x-axis
-        duration:
-          (new Date(project.end_date) - new Date(project.start_date)) /
-          (1000 * 60 * 60 * 24), // Duration in days
-      }));
-  };
-
-  const chartData = getFilteredChartData();
-
-  const data = {
-    labels: chartData.map((project) => project.label),
-    datasets: [
-      {
-        label: `Project Duration (Days) for ${selectedEng} in ${selectedMonth}`,
-        data: chartData.map((project) => project.duration),
-        backgroundColor: "rgba(54, 162, 235, 0.5)",
-      },
-    ],
-  };
-
+  useEffect(() => {
+    prepareChartData();
+  }, [selectedEngineer, selectedMonth, completedList]);
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -173,42 +240,72 @@ export default function Home() {
             Total Projects: {filteredProjects.length}
           </span>
         </h1>
-        <div className="flex space-x-4 mb-6">
-          <select
-            onChange={(e) => setSelectedEng(e.target.value)}
-            className="px-4 py-2 border rounded"
-          >
-            <option value="">Select Engineer</option>
-            {[...new Set(completedList.map((p) => p.eng))].map((eng) => (
-              <option key={eng} value={eng}>
-                {eng}
-              </option>
-            ))}
-          </select>
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Engineer
+            </label>
+            <select
+              value={selectedEngineer}
+              onChange={(e) => setSelectedEngineer(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Engineers</option>
+              {engineers.map((eng) => (
+                <option key={eng} value={eng}>
+                  {eng}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <select
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-4 py-2 border rounded"
-          >
-            <option value="">Select Month</option>
-            {[...new Set(completedList.map((p) => p.month))].map((month) => (
-              <option key={month} value={month}>
-                {month}
-              </option>
-            ))}
-          </select>
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Month
+            </label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Months</option>
+              {[
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+              ].map((month) => (
+                <option key={month} value={month}>
+                  {month}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* Bar Chart */}
-        <div className="bg-white p-4 rounded-lg shadow-lg">
-          {selectedEng && selectedMonth && chartData.length > 0 ? (
-            <Bar data={data} />
+        {/* Enhanced chart section */}
+        <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+          <h2 className="text-xl font-semibold mb-4">
+            Projects Overview {selectedEngineer && `- ${selectedEngineer}`}
+            {selectedMonth && ` (${selectedMonth})`}
+          </h2>
+          {chartData.labels.length > 0 && chartData.datasets.length > 0 ? (
+            <Bar data={chartData} />
           ) : (
-            <p className="text-center text-gray-500">
-              Select Engineer and Month to view chart
-            </p>
+            <div className="text-center py-8 text-gray-500">
+              No data available for visualization
+            </div>
           )}
         </div>
+
         {/* Search Bar */}
         <div className="mb-8">
           <div className="relative">
