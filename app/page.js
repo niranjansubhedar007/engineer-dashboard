@@ -129,38 +129,49 @@ export default function Home() {
   };
 
   const getFilteredChartData = () => {
-    if (!selectedEng || !selectedMonth) return [];
-
-    const { startOfMonth, endOfMonth } = getMonthDateRange(selectedMonth);
-
-    return completedList
-      .filter(
+    let filteredData = completedList;
+  
+    // Filter by selected month
+    if (selectedMonth && selectedMonth !== "All") {
+      const { startOfMonth, endOfMonth } = getMonthDateRange(selectedMonth);
+      filteredData = filteredData.filter(
         (project) =>
-          project.eng === selectedEng &&
           new Date(project.start_date) >= startOfMonth &&
           new Date(project.end_date) <= endOfMonth
-      )
-      .sort((a, b) => new Date(a.start_date) - new Date(b.start_date)) // Sort by start date
-      .map((project) => ({
-        label: project.start_date, // Show start dates on x-axis
-        duration:
-          (new Date(project.end_date) - new Date(project.start_date)) /
-          (1000 * 60 * 60 * 24), // Duration in days
-      }));
+      );
+    }
+  
+    // If a specific engineer is selected, filter by that engineer
+    if (selectedEng && selectedEng !== "All") {
+      filteredData = filteredData.filter((project) => project.eng === selectedEng);
+    }
+  
+    // Count projects per engineer
+    const engineerCounts = filteredData.reduce((acc, project) => {
+      acc[project.eng] = (acc[project.eng] || 0) + 1;
+      return acc;
+    }, {});
+  
+    return Object.entries(engineerCounts).map(([eng, totalProjects]) => ({
+      eng,
+      totalProjects,
+    }));
   };
-
+  
+  // Generate Chart Data
   const chartData = getFilteredChartData();
-
+  
   const data = {
-    labels: chartData.map((project) => project.label),
+    labels: chartData.map((item) => item.eng), // Engineer names
     datasets: [
       {
-        label: `Project Duration (Days) for ${selectedEng} in ${selectedMonth}`,
-        data: chartData.map((project) => project.duration),
-        backgroundColor: "rgba(54, 162, 235, 0.5)",
+        label: "Total Projects",
+        data: chartData.map((item) => item.totalProjects), // Total projects per engineer
+        backgroundColor: chartData.map(() => `hsl(${Math.random() * 360}, 70%, 50%)`), // Dynamic colors
       },
     ],
   };
+  
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -174,29 +185,25 @@ export default function Home() {
           </span>
         </h1>
         <div className="flex space-x-4 mb-6">
-          <select
-            onChange={(e) => setSelectedEng(e.target.value)}
-            className="px-4 py-2 border rounded"
-          >
-            <option value="">Select Engineer</option>
-            {[...new Set(completedList.map((p) => p.eng))].map((eng) => (
-              <option key={eng} value={eng}>
-                {eng}
-              </option>
-            ))}
-          </select>
+        <select onChange={(e) => setSelectedEng(e.target.value)} className="px-4 py-2 border rounded">
+  <option value="All">All Engineers</option>
+  {[...new Set(completedList.map((p) => p.eng))].map((eng) => (
+    <option key={eng} value={eng}>
+      {eng}
+    </option>
+  ))}
+</select>
 
-          <select
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-4 py-2 border rounded"
-          >
-            <option value="">Select Month</option>
-            {[...new Set(completedList.map((p) => p.month))].map((month) => (
-              <option key={month} value={month}>
-                {month}
-              </option>
-            ))}
-          </select>
+<select onChange={(e) => setSelectedMonth(e.target.value)} className="px-4 py-2 border rounded">
+  <option value="All">All Months</option>
+  {[...new Set(completedList.map((p) => p.month))].map((month) => (
+    <option key={month} value={month}>
+      {month}
+    </option>
+  ))}
+</select>
+
+
         </div>
 
         {/* Bar Chart */}
